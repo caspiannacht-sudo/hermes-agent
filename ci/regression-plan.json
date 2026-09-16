@@ -1,0 +1,15 @@
+{
+  "test": "tests/agent/test_credential_banner.py",
+  "tests": [
+    "test_banner_does_not_disclose_credential_fragments[API key-True]",
+    "test_banner_does_not_disclose_credential_fragments[token-False]",
+    "test_banner_preserves_callable_identity_and_missing_key_behavior"
+  ],
+  "baseline_failures": [
+    "test_banner_does_not_disclose_credential_fragments[API key-True]",
+    "test_banner_does_not_disclose_credential_fragments[token-False]"
+  ],
+  "failure_signature": "banner disclosed a credential prefix",
+  "patch": "ci/banner-redaction.patch",
+  "scope": "native initialization credential-display helper with synthetic credentials; not full AIAgent construction, provider authentication or gateway startup"
+}
