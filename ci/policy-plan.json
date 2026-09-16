@@ -1,0 +1,104 @@
+{
+  "base": "576b42bd4cc55d823c0a8d974b41b0250679c8fe",
+  "scope": "Hosted synthetic native policy integration plus real startup-prefix status I/O; not full agent construction, gateway lifecycle, provider inference, or promotion",
+  "count_provenance": "Static AST enumeration of test functions and literal parametrization lists; actual collected/executed counts must match exactly with no errors or skips",
+  "policy_tests": [
+    {
+      "key": "engine",
+      "file": "tests/tools/test_website_policy_strict.py",
+      "count": 199,
+      "function_counts": {
+        "test_strict_requires_enabled_matching_allowlist": 12,
+        "test_allow_and_deny_precedence": 3,
+        "test_falsey_and_wrong_list_containers_deny": 24,
+        "test_invalid_list_elements_are_not_skipped": 28,
+        "test_invalid_scalar_and_unknown_fields_deny": 15,
+        "test_unknown_config_never_fails_open": 28,
+        "test_config_read_errors_deny": 10,
+        "test_each_allowlist_file_required": 14,
+        "test_valid_allowlist_file_cannot_mask_invalid_file_entry": 14,
+        "test_files_relative_to_explicit_config_and_deny_first": 1,
+        "test_shared_host_normalization_and_matching": 13,
+        "test_bad_urls_deny_even_when_policy_disabled": 25,
+        "test_bad_rules_cannot_be_masked_by_good_rule": 8,
+        "test_disabled_cache_cannot_hide_policy_edits_or_profile_switch": 2,
+        "test_allowlist_file_edits_take_effect_immediately": 1,
+        "test_attended_blocklist_and_omitted_policy_remain_supported": 1
+      }
+    },
+    {
+      "key": "context",
+      "file": "tests/tools/test_website_policy_context.py",
+      "count": 15,
+      "function_counts": {
+        "test_nested_token_reset_restores_previous_strictness": 1,
+        "test_context_forces_allowlist_per_call": 3,
+        "test_context_allows_valid_target_but_block_rule_wins": 1,
+        "test_config_strict_survives_context_reset": 1,
+        "test_strict_query_is_true_on_unknown_policy": 6,
+        "test_copied_worker_remains_strict_after_parent_reset": 1,
+        "test_async_sibling_contexts_do_not_leak": 1,
+        "test_finally_restores_on_base_exception": 1
+      }
+    },
+    {
+      "key": "cron",
+      "file": "tests/cron/test_strict_website_context.py",
+      "count": 26,
+      "function_counts": {
+        "test_success_and_no_agent_preserve_callers_context": 2,
+        "test_real_early_return_gates_restore_policy": 5,
+        "test_setup_and_cleanup_errors_restore_policy": 16,
+        "test_llm_and_cleanup_import_failure_is_inside_policy_scope": 2,
+        "test_actual_copied_worker_retains_strict_after_parent_reset": 1
+      }
+    },
+    {
+      "key": "direct",
+      "file": "tests/tools/test_web_direct_policy.py",
+      "count": 40,
+      "function_counts": {
+        "test_native_direct_guard_and_text": 2,
+        "test_builtin_idna_authority_is_the_actual_wire_target": 2,
+        "test_plugin_name_cannot_qualify_strict_dispatch": 1,
+        "test_native_guards_prevent_underlying_dial": 6,
+        "test_unsupported_response_never_follows_or_rescues": 5,
+        "test_richer_available_provider_precedes_direct": 2,
+        "test_strict_gate_precedes_discovery_cache_and_remote_search": 6,
+        "test_full_strict_entrypoint_uses_bundled_direct_only": 1,
+        "test_shared_denials_never_become_cache_misses": 5,
+        "test_rescue_rechecks_policy_when_provider_result_count_differs": 3,
+        "test_real_discovery_selection_and_dispatch_identity": 7
+      }
+    }
+  ],
+  "combined_tests": [
+    {
+      "key": "banner",
+      "file": "tests/agent/test_credential_banner.py",
+      "count": 3,
+      "function_counts": {
+        "test_banner_does_not_disclose_credential_fragments": 2,
+        "test_banner_preserves_callable_identity_and_missing_key_behavior": 1
+      }
+    },
+    {
+      "key": "status",
+      "file": "tests/gateway/test_aurelian_status_reset.py",
+      "count": 3,
+      "function_counts": {
+        "test_fresh_status_reset_and_normal_merge": 1,
+        "test_reset_first_write_and_selective_profile_removal": 1,
+        "test_startup_status_reset_wiring": 1
+      }
+    },
+    {
+      "key": "startup",
+      "file": "tests/gateway/test_startup_status_native.py",
+      "count": 1,
+      "function_counts": {
+        "test_native_start_resets_stale_status_before_early_abort": 1
+      }
+    }
+  ]
+}

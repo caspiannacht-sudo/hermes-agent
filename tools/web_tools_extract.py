@@ -134,10 +134,11 @@ def _resolve_extract_provider(backend: str):
 
 
 def _extract_timeout_seconds() -> float:
-    """Wall-clock cap for one provider ``extract()`` dispatch (``web.extract_timeout``, default 120s).
+    """Caller wait cap for one ``extract()`` dispatch (``web.extract_timeout``, default 120s).
 
     A hanging backend (server keeps the response open without finishing) otherwise stalls the
-    tool call indefinitely. 0 or a negative value disables the cap.
+    tool call indefinitely. 0 or a negative value disables the cap. Cancelling the
+    wait does not stop a sync worker thread; direct's HTTP I/O timeout is separate.
     """
     from tools.web_tools import _load_web_config
     try:
@@ -152,6 +153,8 @@ async def _dispatch_extract(provider, fetch_urls: List[str], format: Optional[st
     Rescue fires on a raised exception — including a dispatch timeout — or when the WHOLE batch
     failed (backend outage, not per-page problems). Rescued batches are never cached.
     """
+    from tools.web_tools_policy import require_strict_provider
+    require_strict_provider(provider)
     import inspect
     from tools.web_result_cache import extract_cache_put
     timeout = _extract_timeout_seconds()
@@ -193,17 +196,26 @@ async def _extract_safe_urls(provider, safe_urls: List[str], format: Optional[st
 
     The disk cache (tools/web_result_cache.py) sits AFTER the secret-URL gate, SSRF gate, and provider
     resolution, and is gated per-URL on the website policy — a hit skips only the vendor call, never a
-    control; policy-blocked URLs are cache misses. Keys include provider and format, so switching either
+    control; policy-blocked URLs are terminal results. Keys include provider and format, so switching either
     within the TTL never serves the other's content."""
+    from tools.web_tools_policy import require_strict_provider
+    require_strict_provider(provider)
     from tools.web_result_cache import extract_cache_get
     from tools.website_policy import check_website_access as _check_site
     cached_results, fetch_urls, fetch_positions = {}, [], []
     for position, url in enumerate(safe_urls):
         try:
             _policy_block = _check_site(url)
-        except Exception:  # noqa: BLE001 — policy errors fail open like dispatch
-            _policy_block = None
-        hit = extract_cache_get(url, format=format, provider=provider.name) if _policy_block is None else None
+        except Exception:  # A failed policy gate must never dispatch a fetch.
+            cached_results[position] = _result_entry(url, "Blocked by website policy: policy evaluation failed")
+            continue
+        if _policy_block is not None:
+            cached_results[position] = {
+                **_result_entry(url, _policy_block["message"]),
+                "blocked_by_policy": _policy_block,
+            }
+            continue
+        hit = extract_cache_get(url, format=format, provider=provider.name)
         if hit is not None:
             cached_results[position] = hit
         else:
@@ -214,6 +226,4 @@ async def _extract_safe_urls(provider, safe_urls: List[str], format: Optional[st
         return [cached_results[i] for i in range(len(safe_urls))]
     logger.info("Web extract via %s: %d URL(s)", provider.name, len(fetch_urls))
     results = await _dispatch_extract(provider, fetch_urls, format)
-    if not cached_results:
-        return results
     return _merge_in_order(len(safe_urls), cached_results, fetch_positions, fetch_urls, results)

@@ -19,6 +19,9 @@ _RING_KEY_VARS = {
 
 def _keyless_rescue_enabled() -> bool:
     """``web.keyless_rescue`` (default on), implicitly off when the keyless tier is disabled."""
+    from tools.web_tools_policy import strict_web_policy
+    if strict_web_policy():
+        return False
     from tools.web_tools import _load_web_config
     if not _load_web_config().get("keyless_rescue", True):
         return False
@@ -36,7 +39,7 @@ def _rescue_eligible(provider) -> bool:
     Eligible: a keyed/configured path — any non-ring backend, or a ring vendor in keyed mode. A ring
     vendor already in keyless mode is NOT eligible: its failure means the ring was already walked.
     """
-    if not _keyless_rescue_enabled() or provider is None:
+    if provider is None or getattr(provider, "name", "") == "direct" or not _keyless_rescue_enabled():
         return False
     try:
         from plugins.web.keyless_mcp import _KEYLESS_RING, use_keyless
@@ -53,6 +56,9 @@ def _rescue_eligible(provider) -> bool:
 
 def _rescue_search(provider_name: str, original_error: str, query: str, limit: int) -> dict:
     """Rescue a failed search via the ring; annotate the result with the original failure."""
+    from tools.web_tools_policy import strict_web_policy, STRICT_SEARCH_ERROR
+    if strict_web_policy():
+        return {"success": False, "error": STRICT_SEARCH_ERROR}
     from plugins.web.keyless_mcp import search_with_failover
     logger.warning(
         "web_search backend '%s' failed (%s); one-shot keyless rescue",
@@ -88,19 +94,30 @@ def _policy_blocked_result(result: dict) -> bool:
 def _rescue_extract(provider_name: str, urls: list, results: list) -> list:
     """Rescue a whole-batch extract failure via the ring.
 
-    Only genuine failures are re-fetched; policy-blocked entries are preserved verbatim. If the provider
-    broke url/result order parity, every entry is treated as rescueable and the ring's list replaces the
-    batch wholesale.
+    Policy is rechecked for every URL, including missing provider entries. A result-count mismatch
+    never authorizes rescue of an unchecked URL or discards a fixed denial.
     """
-    from plugins.web.keyless_mcp import extract_with_failover
-
-    parity = len(results) == len(urls)
-    rescue_idx = [i for i, r in enumerate(results) if not parity or not _policy_blocked_result(r)]
+    from tools.web_tools_policy import strict_web_policy, website_denial
+    from tools.web_tools_extract import _result_entry
+    if strict_web_policy() or provider_name == "direct":
+        return results
+    # Reconstruct short/long provider lists before deciding rescue. Policy is
+    # authoritative even when the provider breaks result-count parity.
+    merged, rescue_idx = [], []
+    for i, url in enumerate(urls):
+        result = results[i] if i < len(results) else _result_entry(url, "Extract backend returned no result for this URL")
+        denial = website_denial(url)
+        if denial is not None:
+            result = {**_result_entry(url, denial.get("message", "Blocked by website policy")),
+                      "blocked_by_policy": denial}
+        elif not _policy_blocked_result(result):
+            rescue_idx.append(i)
+        merged.append(result)
     if not rescue_idx:
-        return results  # every failure is an intentional policy block
-
-    rescue_urls = [urls[i] for i in rescue_idx] if parity else list(urls)
-    errors = (results[i].get("error") for i in rescue_idx if results[i].get("error"))
+        return merged
+    from plugins.web.keyless_mcp import extract_with_failover
+    rescue_urls = [urls[i] for i in rescue_idx]
+    errors = (merged[i].get("error") for i in rescue_idx if merged[i].get("error"))
     original_error = next(errors, "extract failed")
     logger.warning(
         "web_extract backend '%s' failed all %d URL(s) (%s); one-shot keyless rescue",
@@ -108,13 +125,12 @@ def _rescue_extract(provider_name: str, urls: list, results: list) -> list:
     )
     rescued = extract_with_failover(provider_name, list(rescue_urls))
     if rescued and all(r.get("error", "") for r in rescued):
-        return results  # rescue also failed everywhere: keep original errors
+        return merged  # rescue also failed everywhere: keep errors and current denials
     for r in rescued:
         meta = None if r.get("error") else r.setdefault("metadata", {})
         if isinstance(meta, dict):
             meta["rescued_from"] = provider_name
             meta["backend_error"] = (original_error or "")[:300]
-    if parity and len(rescued) == len(rescue_idx):
-        replacements = dict(zip(rescue_idx, rescued))
-        return [replacements.get(i, r) for i, r in enumerate(results)]
-    return rescued
+    for i, replacement in zip(rescue_idx, rescued):
+        merged[i] = replacement
+    return merged

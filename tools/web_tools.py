@@ -21,6 +21,7 @@ from tools.debug_helpers import DebugSession
 from tools.tool_backend_helpers import NOUS_MANAGED_PROVIDER, selection_exists
 from tools.url_safety import async_is_safe_url
 from tools.web_tools_rescue import _rescue_eligible, _rescue_search
+from tools.web_tools_policy import strict_web_policy, strict_extract_provider, STRICT_SEARCH_ERROR
 from tools.web_tools_truncate import _effective_char_limit, _trim_results, _truncate_results, convert_base64_images_to_links
 from tools.web_tools_extract import (
     _extract_safe_urls, _merge_in_order, _no_provider_error, _resolve_extract_provider, _result_entry,
@@ -126,7 +127,7 @@ def _get_backend() -> str:
 
     # Plugin-contributed providers (built-ins are covered above); probe the held object directly.
     for provider in _list_registered_web_providers():
-        if provider.name not in _LEGACY_WEB_BACKENDS and _probe(provider, "is_available"):
+        if provider.name not in _LEGACY_WEB_BACKENDS and provider.name != "direct" and _probe(provider, "is_available"):
             return provider.name
 
     # Keyless free tier — strictly last so it never pre-empts a keyed backend. Discovery must run
@@ -147,12 +148,25 @@ def _get_backend() -> str:
 
 def _get_search_backend() -> str:
     """Backend for web_search: ``web.search_backend`` (strict, no probe) > ``web.backend`` > autodetect."""
-    return _configured_backend("search_backend") or _get_backend()
+    configured = _configured_backend("search_backend")
+    return ("firecrawl" if configured == NOUS_MANAGED_PROVIDER else configured) or _get_backend()
 
 
 def _get_extract_backend() -> str:
     """Backend for web_extract: ``web.extract_backend`` (strict, no probe) > ``web.backend`` > autodetect."""
-    return _configured_backend("extract_backend") or _get_backend()
+    configured = _configured_backend("extract_backend")
+    if configured:
+        return "firecrawl" if configured == NOUS_MANAGED_PROVIDER else configured
+    if selection_exists("web"):
+        return _get_backend()
+    _ensure_web_plugins_loaded()
+    backend = _get_backend()
+    provider = _registered_web_provider(backend)
+    if provider is not None and _probe(provider, "supports_extract") and _provider_is_ready(provider):
+        return backend
+    from agent.web_search_registry import get_active_extract_provider
+    provider = get_active_extract_provider()
+    return provider.name if provider is not None else backend
 
 
 def _ddgs_package_importable() -> bool:
@@ -269,6 +283,8 @@ def web_search_tool(query: str, limit: int = 5) -> str:
     Returns a JSON string ``{"success": bool, "data": {"web": [{"title", "url", "description", "position"},
     ...]}}`` (metadata only — use web_extract_tool for page content) or ``{"success": false, "error": ...}``.
     """
+    if strict_web_policy():
+        return tool_error(STRICT_SEARCH_ERROR, success=False)
     try:
         limit = min(max(int(limit), 1), 100)
     except (TypeError, ValueError):
@@ -316,6 +332,8 @@ def _memoized_search(provider, query: str, limit: int) -> dict:
     safety/config check. The provider is asked for the BUCKETED count so near-identical limits share an entry;
     the caller's count is sliced out. Only successful, non-rescued responses are cached — caching a rescue
     would make the one-shot ring fallback sticky for a whole TTL."""
+    if strict_web_policy():
+        return {"success": False, "error": STRICT_SEARCH_ERROR}
     from tools.web_result_cache import bucket_limit, search_memo, slice_search_response
 
     def _paid_search() -> tuple[dict, bool]:
@@ -349,6 +367,14 @@ async def web_extract_tool(urls: List[Any], format: str = None, char_limit: Opti
     pointing at the stored full text; inline base64 images become ``[IMAGE: alt]``. URLs carrying secrets are
     refused before any fetch; private-network URLs are blocked per entry. Returns JSON ``{"results": [...]}``.
     """
+    # Strict selection before cache, broad plugin discovery, or provider init.
+    strict_provider = None
+    if strict_web_policy():
+        try:
+            strict_provider = strict_extract_provider()
+        except Exception:
+            from tools.web_tools_policy import STRICT_EXTRACT_ERROR
+            return tool_error(STRICT_EXTRACT_ERROR, success=False)
     normalized_urls, normalized_indices, invalid_urls, blocked = _validate_extract_urls(urls)
     if blocked is not None:
         return blocked
@@ -373,11 +399,14 @@ async def web_extract_tool(urls: List[Any], format: str = None, char_limit: Opti
 
         results = []
         if safe_urls:
-            backend = _get_extract_backend()
-            _ensure_web_plugins_loaded()
-            provider, error_json = _resolve_extract_provider(backend)
-            if error_json is not None:
-                return error_json
+            if strict_provider is not None:
+                provider = strict_provider
+            else:
+                backend = _get_extract_backend()
+                _ensure_web_plugins_loaded()
+                provider, error_json = _resolve_extract_provider(backend)
+                if error_json is not None:
+                    return error_json
             results = await _extract_safe_urls(provider, safe_urls, format)
         # Reconstruct input order across invalid, blocked, and provider entries (providers preserve
         # the order of the safe URL list they receive).
@@ -430,6 +459,15 @@ def check_web_api_key() -> bool:
 
     See #28651, #31873.
     """
+    if strict_web_policy():
+        try:
+            return _provider_is_ready(strict_extract_provider())
+        except Exception:
+            return False
+    if selection_exists("web"):
+        _ensure_web_plugins_loaded()
+        return any(_provider_is_ready(_registered_web_provider(name))
+                   for name in (_get_search_backend(), _get_extract_backend()))
     # Boolean OR over configured + built-ins — probe order is irrelevant here.
     candidates = [c for c in (_configured_backend(),) if c] + list(_LEGACY_WEB_BACKENDS)
     if any(_is_backend_available(backend) for backend in candidates):
@@ -444,6 +482,23 @@ def check_web_api_key() -> bool:
     except Exception as exc:  # noqa: BLE001 — registry optional; never fatal
         logger.debug("web provider registry availability check failed: %s", exc)
         return False
+
+
+def _web_capability_ready(capability):
+    if strict_web_policy():
+        if capability == "search":
+            return False
+        try:
+            return _provider_is_ready(strict_extract_provider())
+        except Exception:
+            return False
+    _ensure_web_plugins_loaded()
+    backend = _get_search_backend() if capability == "search" else _get_extract_backend()
+    provider = _registered_web_provider(backend)
+    if provider is None and not selection_exists("web"):
+        from agent.web_search_registry import get_active_search_provider, get_active_extract_provider
+        provider = get_active_search_provider() if capability == "search" else get_active_extract_provider()
+    return bool(provider is not None and _probe(provider, "supports_" + capability) and _provider_is_ready(provider))
 
 
 # ─── Registry ─────────────────────────────────────────────────────────────────
@@ -496,7 +551,7 @@ WEB_EXTRACT_SCHEMA = {
 registry.register(
     name="web_search", toolset="web", schema=WEB_SEARCH_SCHEMA,
     handler=lambda args, **kw: web_search_tool(args.get("query", ""), limit=args.get("limit", 5)),
-    check_fn=check_web_api_key, requires_env=_web_requires_env(), emoji="🔍",
+    check_fn=lambda: _web_capability_ready("search"), requires_env=_web_requires_env(), emoji="🔍",
     max_result_size_chars=100_000,
 )
 registry.register(
@@ -505,7 +560,7 @@ registry.register(
         args.get("urls", [])[:5] if isinstance(args.get("urls"), list) else [], "markdown",
         char_limit=args.get("char_limit"),
     ),
-    check_fn=check_web_api_key, requires_env=_web_requires_env(), is_async=True, emoji="📄",
+    check_fn=lambda: _web_capability_ready("extract"), requires_env=_web_requires_env(), is_async=True, emoji="📄",
     max_result_size_chars=100_000,
 )
 

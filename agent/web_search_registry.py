@@ -52,7 +52,12 @@ def _read_config_key(*path: str) -> Optional[str]:
 
 def _configured_backend(capability: str) -> Optional[str]:
     """``web.<capability>_backend`` (preferred) or ``web.backend`` (shared fallback)."""
-    return _read_config_key("web", f"{capability}_backend") or _read_config_key("web", "backend")
+    from tools.tool_backend_helpers import selection_exists
+    name = _read_config_key("web", f"{capability}_backend") or _read_config_key("web", "backend")
+    if name:
+        name = name.strip().lower()
+        return "firecrawl" if name == "nous" else name
+    return "firecrawl" if selection_exists("web") else None
 
 
 # Paid providers first so existing paid setups don't get downgraded to a free
@@ -89,6 +94,14 @@ def _resolve(configured: Optional[str], *, capability: str) -> Optional[WebSearc
     available capable provider; then the availability-filtered legacy walk;
     then the keyless free-tier walk; else None.
     """
+    from tools.web_tools_policy import strict_web_policy, strict_extract_provider
+    if strict_web_policy():
+        if capability != "extract":
+            return None
+        try:
+            return strict_extract_provider()
+        except Exception:
+            return None
     snapshot = _registry.merged()
 
     def _capable(p: WebSearchProvider) -> bool:
@@ -111,9 +124,11 @@ def _resolve(configured: Optional[str], *, capability: str) -> Optional[WebSearc
                 "web backend '%s' configured but does not support '%s'; falling back", configured, capability
             )
 
+        return None  # Stored selections never authorize an availability walk.
+
     # Fallbacks are availability-filtered so a registered-but-keyless provider
     # never becomes "active" on a fresh install.
-    eligible = [p for p in snapshot.values() if _capable(p) and _available(p)]
+    eligible = [p for p in snapshot.values() if p.name != "direct" and _capable(p) and _available(p)]
     if len(eligible) == 1:
         return eligible[0]
 
@@ -121,6 +136,9 @@ def _resolve(configured: Optional[str], *, capability: str) -> Optional[WebSearc
         provider = snapshot.get(legacy)
         if provider is not None and provider in eligible:
             return provider
+
+    if eligible:
+        return eligible[0]  # Richer plugin providers still precede direct/keyless.
 
     # Keyless free tier (anonymous public MCP tiers) is last-resort only: it is
     # reachable solely when the legacy walk found nothing, never pre-empting a
@@ -136,11 +154,15 @@ def _resolve(configured: Optional[str], *, capability: str) -> Optional[WebSearc
             except Exception as exc:  # noqa: BLE001 — buggy provider skipped
                 logger.debug("provider %s.is_keyless_available() raised %s", name, exc)
 
-    return None
+    provider = snapshot.get("direct")
+    return provider if provider is not None and _capable(provider) and _available(provider) else None
 
 
 def _keyless_tier_enabled() -> bool:
     """Read ``web.keyless_fallback`` from config.yaml (default: enabled)."""
+    from tools.web_tools_policy import strict_web_policy
+    if strict_web_policy():
+        return False
     try:
         from hermes_cli.config import load_config
 

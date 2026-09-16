@@ -2260,6 +2260,30 @@ def run_job(
     ``extra_prompt``: optional per-run context from ``cronjob(action='run', prompt=...)`` (#57331). Appended
     to the stored prompt for this fire only — never persisted to the job definition.
     """
+    # Script-only jobs retain their existing path without activating LLM policy.
+    if job.get("no_agent"):
+        return _run_job_body(
+            job, defer_agent_teardown=defer_agent_teardown, extra_prompt=extra_prompt,
+            cancel_event=cancel_event, execution_id=execution_id)
+
+    from tools.website_policy import (
+        begin_unattended_website_policy, end_unattended_website_policy)
+
+    token = begin_unattended_website_policy()
+    try:
+        return _run_job_body(
+            job, defer_agent_teardown=defer_agent_teardown, extra_prompt=extra_prompt,
+            cancel_event=cancel_event, execution_id=execution_id)
+    finally:
+        # Independent of scope construction and ALL inner cleanup, even BaseException.
+        end_unattended_website_policy(token)
+
+
+def _run_job_body(
+    job: dict, *, defer_agent_teardown: Optional[list] = None, extra_prompt: Optional[str] = None,
+    cancel_event: Optional[_CancelEventLike] = None, execution_id: Optional[str] = None,
+) -> tuple[bool, str, str, Optional[str]]:
+    """Existing execution body; LLM callers enter through run_job's policy scope."""
     job_id = job["id"]
     job_name = str(job.get("name") or job.get("prompt") or job_id or "cron job")
 

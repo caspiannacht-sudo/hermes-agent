@@ -807,16 +807,19 @@ def write_runtime_status(
     error_code: Any = _UNSET, error_message: Any = _UNSET, needs_attention: Any = _UNSET,
     retrying_since: Any = _UNSET, served_profiles: Any = _UNSET, session_store: Any = _UNSET,
     ingress_url: Any = _UNSET, listener_base: Any = _UNSET, clear_profile_platforms: bool = False,
-    drop_profile_platforms: Optional[str] = None,
+    drop_profile_platforms: Optional[str] = None, reset_platforms: bool = False,
 ) -> None:
     """Persist gateway runtime health information for diagnostics/status. ``drop_profile_platforms``
-    removes one deleted profile's ``<profile>:<platform>`` entries (hot unroute)."""
+    removes one deleted profile's ``<profile>:<platform>`` entries (hot unroute).
+    ``reset_platforms`` discards all stale adapter diagnostics at fresh startup."""
     path = _get_runtime_status_path()
     payload = _read_json_file(path) or _build_runtime_status_record()
     previous_payload = copy.deepcopy(payload)
     current_record = _build_pid_record()
     payload.setdefault("platforms", {})
-    if clear_profile_platforms or drop_profile_platforms:
+    if reset_platforms:
+        payload["platforms"] = {}
+    elif clear_profile_platforms or drop_profile_platforms:
         # Secondary-profile entries are keyed ``<profile>:<platform>``. A fresh process must not
         # inherit them or /api/status stays degraded until every old adapter re-emits.
         platforms = payload["platforms"] if isinstance(payload["platforms"], dict) else {}

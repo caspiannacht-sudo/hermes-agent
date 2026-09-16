@@ -1,15 +1,15 @@
-name: Aurelian public credential-banner slice
+name: Aurelian public coherent-policy candidate
 on:
   push:
-    branches: [aurelian/eval-banner-ehd6hbnA]
+    branches: [aurelian/eval-policy-ehd6hbnA]
 permissions: {}
 concurrency:
-  group: aurelian-banner-ehd6hbnA
+  group: aurelian-policy-ehd6hbnA
   cancel-in-progress: false
 jobs:
-  banner-redaction:
+  policy-candidate:
     runs-on: macos-15
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Fetch exact public commit without credentials
         shell: bash
@@ -21,7 +21,7 @@ jobs:
           mkdir public-source
           cd public-source
           git -c credential.helper= init
-          git -c credential.helper= -c core.hooksPath=/dev/null fetch --depth=1 https://github.com/caspiannacht-sudo/hermes-agent.git "$TEST_SHA"
+          git -c credential.helper= -c core.hooksPath=/dev/null fetch --depth=2 https://github.com/caspiannacht-sudo/hermes-agent.git "$TEST_SHA"
           git -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
           test "$(git rev-parse HEAD)" = "$TEST_SHA"
       - name: Install reviewed additive hash-pinned test-only wheels
@@ -34,9 +34,9 @@ jobs:
           "$PYTHON" -I -c 'import sys; print(sys.version); assert sys.version_info[:3] == (3, 11, 9)'
           "$PYTHON" -m venv .test-env
           .test-env/bin/python -m pip --isolated install --no-deps --only-binary :all: --require-hashes -r ci/banner-requirements.txt
-      - name: Native banner baseline red, patched green, revert red
+      - name: Native policy, combined candidate and startup negative control
         shell: bash
         run: |
           set -euo pipefail
           cd public-source
-          .test-env/bin/python -I -B ci/run_regression.py
+          .test-env/bin/python -I -B ci/run_policy_candidate.py
