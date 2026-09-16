@@ -1,0 +1,61 @@
+{
+  "base": "05bfc1aa5760de73516fb2d0f7a681479d435127",
+  "tests": [
+    {
+      "key": "native-start-stop",
+      "file": "tests/gateway/test_native_cron_mode_start_stop.py",
+      "names": [
+        "test_real_constructor_normal_cron_mode_start_and_idle_stop"
+      ]
+    }
+  ],
+  "input_hashes": {
+    "AGENTS.md": "752c0d1f165fe1e8ae7aa96c88c214c0f3453f35d619b4167cb2dc1d6df9a05e",
+    "gateway/AGENTS.md": "3237e8acf859f5fe2b66ff65ead57a91bbd28c510f5fff7941052be9fdc4d236",
+    "gateway/run.py": "ab619aa0dc193c6d8741f3cabc9a028c2fb7459c22262c69597b0e872091bde5",
+    "gateway/run_startup.py": "9585166e49d1e4d13257ac2caf1dd59987cab70a78b5358625be8c7e87a56e8f",
+    "gateway/run_shutdown.py": "421b6e004ddb4058a54b43cfa9333267daf51516966d4d76af254fa68472912f",
+    "gateway/run_adapters.py": "b652b0ea6cbb3a92e17fd421a9db359702bad3b79bd8baa68d138b57dd725470",
+    "gateway/run_goals.py": "103ba8666794c9b2671cbfe8da94b67be4579fdc82f2a09a27af850337918f76",
+    "gateway/run_inbound.py": "9f82c79b913e5dd14807b31f04b2a3449b82dc3cdbc7c7779c935bff02c2cc84",
+    "gateway/run_heartbeat_restore.py": "ee012d3dd55a3db74ba9c8397645c4ba0c4173ad577da0b77e3b51306b45ab99",
+    "gateway/shutdown_watchdog.py": "507b42c41eb280fd854b3764ea03d4d8653fce2881432f4b0985461a2b69c024",
+    "gateway/config.py": "a9dd00bad424dfe7975cbd2002df978e4db0f0738555a8bf73379e434ab3deea",
+    "gateway/hooks.py": "c9734fdde83e61920a939ccb9d7e4a5fe21ce584adc13d9b3a9574f76e13396e",
+    "gateway/status.py": "378ba17a6d4fbfcc5b7dea7b4dedbb09b3cb0fa49702d09684424343beefe7cb",
+    "gateway/session.py": "d466283707e7a9a451771abd0572187390314dabcdfc4a199f25a5403e6c4c81",
+    "hermes_state.py": "c92415eeb6bba298ff9bd3f823a6c3f9f9ff762c32af5d058923a7ba740dd5ec",
+    "agent/auxiliary_client.py": "fa2c0aff55f6b17679ab76b85c42ee5950450ae08cf81bd4bdcbd44e65fce775",
+    "cron/scheduler.py": "f1f5ea9ad1283c8cc0bf950e183ea533943440924cb7e3e5ff70239994577815",
+    "tests/conftest.py": "32e25c6106d10223a4f124b25dc3f31454054c52c6a68e4c8951584a520b39f1",
+    "tests/gateway/conftest.py": "379f7df91f6feedae991c0fa6e6d3c7999f3e6db001aaf7275d76ab0ef31b894",
+    "tests/gateway/test_runner_startup_failures.py": "c005561d8ea97081b5b67a4da9a77b748b8630733386ca34622647f8165d2a21",
+    "tests/gateway/test_startup_status_native.py": "4df17ff857a906aa3f089dc92530837f34457a8e8c40edc3c5f4dee49adfc6e6",
+    "ci/banner-requirements.txt": "87c7c00536fa52150275b4f6ff876b0f4b75bc71edd323b9310ac9c3af40ce81",
+    "pyproject.toml": "a674c321c63c3bfd9fa099fab5957a64092416f7771680b370a4d77e992744ba",
+    "uv.lock": "4426ffd292c32cd8edda5779db49951833e87c73cab7cee845e7afe92ecb17b9",
+    "scripts/run_tests.sh": "d798d932e5322015bcfcefd23978d26b8c9ccd40ec7645f13274a2ffbf46f010",
+    "scripts/run_tests_parallel.py": "820d3e876e2a1fa904c279777b497baa3e6447dc7123568806dab135ab5e6696",
+    "ci/run_startup_candidate.py": "b8f95f68e53628c663487bcb97a76a3caf4293c3894342ca5edfb03ac792a985",
+    "tests/gateway/test_native_cron_mode_start_stop.py": "008eb6ec441346a6f9b2c1ab390dd0808c39b7ba67f90d262a372bc2c6d88116"
+  },
+  "scope": "Real GatewayRunner constructor, normal no-platform runner start, and observed native idle stop in synthetic hosted state; eight explicit collaborator substitutions.",
+  "substitutions": [
+    "_start_install_faulthandler",
+    "_start_log_systemd_timing_alignment",
+    "_start_register_plugins_relay_hooks",
+    "_start_free_tier_bootstrap",
+    "_ensure_hosted_room_worker",
+    "_stop_hosted_room_worker",
+    "_stop_kill_tool_subprocesses",
+    "_spawn_supervised: native supervisor with enumerated inert watcher bodies"
+  ],
+  "limits": [
+    "No full outer gateway lifecycle, actual cron scheduling, enabled adapters, provider inference, shared-state compatibility or promotion.",
+    "Inherited canonical fixtures include SDK doubles and environment/system guards; not an entirely unstubbed module graph.",
+    "Disposable public macos-15 hosted VM, not network-denied sandbox. No production material or supplied credentials; AF_UNIX allowed.",
+    "Canonical runner may omit successful child output; no exhaustive clean-teardown-output claim. Assertions observe owned idle resource cleanup only.",
+    "No active-work drain, no-force/no-respawn live stop, independent attended CLI or private recovery custody qualification.",
+    "Independent short unique /tmp pytest basetemp supports native Unix listener after macOS path resolution; 90s file, 150s driver and 10min job ceilings; no retry."
+  ]
+}

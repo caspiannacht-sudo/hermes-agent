@@ -1,15 +1,15 @@
-name: Aurelian public coherent-policy candidate
+name: Aurelian public native startup successor
 on:
   push:
-    branches: [aurelian/eval-policy-ehd6hbnA]
+    branches: [aurelian/eval-startup-ehd6hbnA-r2]
 permissions: {}
 concurrency:
-  group: aurelian-policy-ehd6hbnA
+  group: aurelian-startup-ehd6hbnA-r2
   cancel-in-progress: false
 jobs:
-  policy-candidate:
+  startup-candidate:
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - name: Fetch exact public commit without credentials
         shell: bash
@@ -24,7 +24,7 @@ jobs:
           git -c credential.helper= -c core.hooksPath=/dev/null fetch --depth=2 https://github.com/caspiannacht-sudo/hermes-agent.git "$TEST_SHA"
           git -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
           test "$(git rev-parse HEAD)" = "$TEST_SHA"
-      - name: Install reviewed additive hash-pinned test-only wheels
+      - name: Install unchanged reviewed hash-pinned test-only wheels
         shell: bash
         run: |
           set -euo pipefail
@@ -34,9 +34,9 @@ jobs:
           "$PYTHON" -I -c 'import sys; print(sys.version); assert sys.version_info[:3] == (3, 11, 9)'
           "$PYTHON" -m venv .test-env
           .test-env/bin/python -m pip --isolated install --no-deps --only-binary :all: --require-hashes -r ci/banner-requirements.txt
-      - name: Native policy, combined candidate and startup negative control
+      - name: Native startup successor only
         shell: bash
         run: |
           set -euo pipefail
           cd public-source
-          .test-env/bin/python -I -B ci/run_policy_candidate.py
+          .test-env/bin/python -I -B ci/run_startup_candidate.py
