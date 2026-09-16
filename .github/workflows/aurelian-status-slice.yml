@@ -1,0 +1,40 @@
+name: Aurelian public status-reset slice
+on:
+  push:
+    branches: [aurelian/eval-status-reset-20260915-ESXPFe3e]
+permissions: {}
+concurrency:
+  group: aurelian-status-reset-ESXPFe3e
+  cancel-in-progress: false
+jobs:
+  status-reset:
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - name: Fetch exact public commit without credentials
+        shell: bash
+        env:
+          TEST_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$TEST_SHA" =~ ^[0-9a-f]{40}$ ]]
+          mkdir public-source
+          cd public-source
+          git -c credential.helper= init
+          git -c credential.helper= -c core.hooksPath=/dev/null fetch --depth=1 https://github.com/caspiannacht-sudo/hermes-agent.git "$TEST_SHA"
+          git -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$TEST_SHA"
+      - name: Install finite hash-pinned test-only wheels
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd public-source
+          python3 --version
+          python3 -m venv .test-env
+          .test-env/bin/python -m pip --isolated install --no-deps --only-binary :all: --require-hashes -r ci/test-requirements.txt
+      - name: Baseline red, patched green, wiring negative control
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd public-source
+          .test-env/bin/python -I -B ci/run_status_slice.py
