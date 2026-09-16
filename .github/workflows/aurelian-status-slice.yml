@@ -29,8 +29,10 @@ jobs:
         run: |
           set -euo pipefail
           cd public-source
-          python3 --version
-          python3 -m venv .test-env
+          PYTHON="$RUNNER_TOOL_CACHE/Python/3.11.9/arm64/bin/python3"
+          test -x "$PYTHON"
+          "$PYTHON" -I -c 'import sys; print(sys.version); assert sys.version_info[:3] == (3, 11, 9)'
+          "$PYTHON" -m venv .test-env
           .test-env/bin/python -m pip --isolated install --no-deps --only-binary :all: --require-hashes -r ci/test-requirements.txt
       - name: Baseline red, patched green, wiring negative control
         shell: bash
